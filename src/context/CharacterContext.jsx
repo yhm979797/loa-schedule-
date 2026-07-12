@@ -15,7 +15,20 @@ function initialCharacters() {
 }
 function normalizeRaid(r, index) {
   const found = raidById(r?.id);
-  return { ...(found || {}), ...r, slotId: r?.slotId || `slot-${index + 1}`, gold: Number(r?.gold ?? found?.gold ?? 0), done: Boolean(r?.done) };
+  const slotId = r?.slotId || `slot-${index + 1}`;
+  const done = Boolean(r?.done);
+
+  // 저장돼 있던 예전 골드값보다 최신 raids.js 값을 우선 사용합니다.
+  if (found) {
+    return { ...found, slotId, done };
+  }
+
+  return {
+    ...r,
+    slotId,
+    gold: Number(r?.gold || 0),
+    done,
+  };
 }
 function normalize(c) {
   const level = Number(c.level) || 0;
