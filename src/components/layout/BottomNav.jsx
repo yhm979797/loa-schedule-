@@ -1,33 +1,21 @@
-import {
-  CalendarCheck2,
-  Coins,
-  House,
-  Settings,
-  Users,
-} from "lucide-react";
 import { NavLink } from "react-router-dom";
+import { Home, Swords, ListChecks, Users, Coins, Settings } from "lucide-react";
 
 const items = [
-  { to: "/", label: "홈", icon: House, end: true },
-  { to: "/characters", label: "캐릭터", icon: Users },
-  { to: "/todos", label: "숙제", icon: CalendarCheck2 },
-  { to: "/gold", label: "골드", icon: Coins },
-  { to: "/settings", label: "설정", icon: Settings },
+  ["/", "홈", Home],
+  ["/characters", "캐릭터", Swords],
+  ["/todos", "숙제", ListChecks],
+  ["/friends", "친구", Users],
+  ["/gold", "골드", Coins],
+  ["/settings", "설정", Settings],
 ];
 
 export default function BottomNav() {
   return (
     <nav className="bottom-nav">
-      {items.map(({ to, label, icon: Icon, end }) => (
-        <NavLink
-          key={to}
-          to={to}
-          end={end}
-          className={({ isActive }) =>
-            `nav-item ${isActive ? "active" : ""}`
-          }
-        >
-          <Icon size={20} />
+      {items.map(([to, label, Icon]) => (
+        <NavLink key={to} to={to} end={to === "/"}>
+          <Icon size={19} />
           <span>{label}</span>
         </NavLink>
       ))}

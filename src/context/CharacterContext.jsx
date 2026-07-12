@@ -1,170 +1,161 @@
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import {
-  createDefaultDailyTodos,
-  createDefaultWeeklyTodos,
-} from "../constants/tasks";
-
-const STORAGE_KEY = "loamate-characters";
-const SETTINGS_KEY = "loamate-settings";
+  collection,
+  deleteDoc,
+  doc,
+  onSnapshot,
+  setDoc,
+  writeBatch,
+} from "firebase/firestore";
+import { db, firebaseEnabled } from "../lib/firebase";
+import { useAuth } from "./AuthContext";
+import { ALL_TASKS, emptyTasks } from "../constants/tasks";
 
 const CharacterContext = createContext(null);
+const LOCAL_KEY = "loamate-v2-characters";
 
-const normalizeCharacter = (character) => ({
-  id: character.id ?? crypto.randomUUID(),
-  name: character.name ?? "",
-  job: character.job ?? "",
-  level: Number(character.level) || 0,
-  server: character.server ?? "",
-  isGoldCharacter: Boolean(character.isGoldCharacter),
-  weeklyGold: Number(character.weeklyGold) || 0,
-  dailyTodos: {
-    ...createDefaultDailyTodos(),
-    ...(character.dailyTodos ?? character.todos ?? {}),
-  },
-  weeklyTodos: {
-    ...createDefaultWeeklyTodos(),
-    ...(character.weeklyTodos ?? {}),
-  },
-});
-
-const loadCharacters = () => {
+function loadLocal() {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed.map(normalizeCharacter) : [];
+    return JSON.parse(localStorage.getItem(LOCAL_KEY) || "[]");
   } catch {
     return [];
   }
-};
+}
 
-const loadSettings = () => {
-  try {
-    const raw = localStorage.getItem(SETTINGS_KEY);
-    if (!raw) return { dailyResetHour: 6, weeklyResetDay: 3 };
-    return {
-      dailyResetHour: 6,
-      weeklyResetDay: 3,
-      ...JSON.parse(raw),
-    };
-  } catch {
-    return { dailyResetHour: 6, weeklyResetDay: 3 };
-  }
-};
+function normalizeCharacter(character) {
+  return {
+    id: character.id || crypto.randomUUID(),
+    name: character.name?.trim() || "이름 없음",
+    job: character.job || "",
+    level: Number(character.level) || 0,
+    server: character.server || "",
+    goldCharacter: Boolean(character.goldCharacter),
+    gold: Number(character.gold) || 0,
+    tasks: { ...emptyTasks(), ...(character.tasks || {}) },
+    updatedAt: Date.now(),
+  };
+}
 
 export function CharacterProvider({ children }) {
-  const [characters, setCharacters] = useState(loadCharacters);
-  const [settings, setSettings] = useState(loadSettings);
+  const { user } = useAuth();
+  const [characters, setCharacters] = useState(loadLocal);
+  const [syncing, setSyncing] = useState(false);
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(characters));
+    if (!firebaseEnabled || !user) {
+      setCharacters(loadLocal());
+      return;
+    }
+
+    const ref = collection(db, "users", user.uid, "characters");
+    return onSnapshot(ref, (snapshot) => {
+      const cloud = snapshot.docs.map((item) => item.data());
+      setCharacters(cloud.sort((a, b) => b.level - a.level));
+    });
+  }, [user]);
+
+  useEffect(() => {
+    if (!firebaseEnabled || !user) {
+      localStorage.setItem(LOCAL_KEY, JSON.stringify(characters));
+    }
+  }, [characters, user]);
+
+  const saveCharacter = async (character) => {
+    const next = normalizeCharacter(character);
+    if (firebaseEnabled && user) {
+      await setDoc(doc(db, "users", user.uid, "characters", next.id), next);
+    } else {
+      setCharacters((prev) => {
+        const exists = prev.some((item) => item.id === next.id);
+        return exists
+          ? prev.map((item) => (item.id === next.id ? next : item))
+          : [...prev, next];
+      });
+    }
+    return next;
+  };
+
+  const addMany = async (items) => {
+    const unique = items
+      .map(normalizeCharacter)
+      .filter((item, index, array) =>
+        array.findIndex((x) => x.name === item.name && x.server === item.server) === index
+      );
+
+    if (firebaseEnabled && user) {
+      setSyncing(true);
+      const batch = writeBatch(db);
+      unique.forEach((item) => {
+        batch.set(doc(db, "users", user.uid, "characters", item.id), item, { merge: true });
+      });
+      await batch.commit();
+      setSyncing(false);
+    } else {
+      setCharacters((prev) => {
+        const map = new Map(prev.map((item) => [`${item.server}:${item.name}`, item]));
+        unique.forEach((item) => map.set(`${item.server}:${item.name}`, { ...map.get(`${item.server}:${item.name}`), ...item }));
+        return [...map.values()];
+      });
+    }
+  };
+
+  const removeCharacter = async (id) => {
+    if (firebaseEnabled && user) {
+      await deleteDoc(doc(db, "users", user.uid, "characters", id));
+    } else {
+      setCharacters((prev) => prev.filter((item) => item.id !== id));
+    }
+  };
+
+  const patchCharacter = async (id, patch) => {
+    const current = characters.find((item) => item.id === id);
+    if (!current) return;
+    await saveCharacter({ ...current, ...patch, id });
+  };
+
+  const toggleTask = async (id, taskKey) => {
+    const current = characters.find((item) => item.id === id);
+    if (!current) return;
+    await patchCharacter(id, {
+      tasks: { ...current.tasks, [taskKey]: !current.tasks?.[taskKey] },
+    });
+  };
+
+  const resetTasks = async (keys = ALL_TASKS.map((task) => task.key)) => {
+    for (const character of characters) {
+      const tasks = { ...character.tasks };
+      keys.forEach((key) => (tasks[key] = false));
+      await patchCharacter(character.id, { tasks });
+    }
+  };
+
+  const totalProgress = useMemo(() => {
+    if (!characters.length) return 0;
+    const total = characters.length * ALL_TASKS.length;
+    const done = characters.reduce(
+      (sum, item) => sum + ALL_TASKS.filter((task) => item.tasks?.[task.key]).length,
+      0
+    );
+    return Math.round((done / total) * 100);
   }, [characters]);
 
-  useEffect(() => {
-    localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
-  }, [settings]);
-
-  const addCharacter = (character) => {
-    setCharacters((current) => [
-      ...current,
-      normalizeCharacter({
-        ...character,
-        id: crypto.randomUUID(),
-      }),
-    ]);
-  };
-
-  const updateCharacter = (id, updates) => {
-    setCharacters((current) =>
-      current.map((character) =>
-        character.id === id
-          ? normalizeCharacter({ ...character, ...updates, id })
-          : character
-      )
-    );
-  };
-
-  const removeCharacter = (id) => {
-    setCharacters((current) =>
-      current.filter((character) => character.id !== id)
-    );
-  };
-
-  const toggleTodo = (id, type, key) => {
-    const todoField = type === "weekly" ? "weeklyTodos" : "dailyTodos";
-
-    setCharacters((current) =>
-      current.map((character) =>
-        character.id === id
-          ? {
-              ...character,
-              [todoField]: {
-                ...character[todoField],
-                [key]: !character[todoField]?.[key],
-              },
-            }
-          : character
-      )
-    );
-  };
-
-  const setAllTodos = (type, checked) => {
-    const todoField = type === "weekly" ? "weeklyTodos" : "dailyTodos";
-
-    setCharacters((current) =>
-      current.map((character) => ({
-        ...character,
-        [todoField]: Object.fromEntries(
-          Object.keys(character[todoField]).map((key) => [key, checked])
-        ),
-      }))
-    );
-  };
-
-  const resetTodos = (type) => setAllTodos(type, false);
-
-  const clearAllData = () => {
-    setCharacters([]);
-    localStorage.removeItem(STORAGE_KEY);
-  };
-
-  const importData = (data) => {
-    if (!Array.isArray(data)) {
-      throw new Error("올바른 캐릭터 백업 파일이 아닙니다.");
-    }
-    setCharacters(data.map(normalizeCharacter));
-  };
-
-  const value = useMemo(
-    () => ({
-      characters,
-      settings,
-      addCharacter,
-      updateCharacter,
-      removeCharacter,
-      toggleTodo,
-      setAllTodos,
-      resetTodos,
-      setSettings,
-      clearAllData,
-      importData,
-    }),
-    [characters, settings]
-  );
-
   return (
-    <CharacterContext.Provider value={value}>
+    <CharacterContext.Provider
+      value={{
+        characters,
+        syncing,
+        totalProgress,
+        saveCharacter,
+        addMany,
+        removeCharacter,
+        patchCharacter,
+        toggleTask,
+        resetTasks,
+      }}
+    >
       {children}
     </CharacterContext.Provider>
   );
 }
 
-export function useCharacter() {
-  const context = useContext(CharacterContext);
-
-  if (!context) {
-    throw new Error("useCharacter는 CharacterProvider 안에서 사용해야 합니다.");
-  }
-
-  return context;
-}
+export const useCharacters = () => useContext(CharacterContext);

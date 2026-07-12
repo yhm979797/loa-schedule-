@@ -1,61 +1,47 @@
-import { Pencil, Trash2 } from "lucide-react";
-import { DAILY_TASKS } from "../../constants/tasks";
+import { Trash2 } from "lucide-react";
+import { ALL_TASKS } from "../../constants/tasks";
 import ProgressBar from "../common/ProgressBar";
 
 export default function CharacterCard({
   character,
-  onToggleTodo,
-  onEdit,
+  onToggle,
   onDelete,
+  readOnly = false,
 }) {
-  const completed = DAILY_TASKS.filter(
-    (task) => character.dailyTodos?.[task.key]
-  ).length;
-  const progress = Math.round((completed / DAILY_TASKS.length) * 100);
+  const done = ALL_TASKS.filter((task) => character.tasks?.[task.key]).length;
+  const progress = Math.round((done / ALL_TASKS.length) * 100);
 
   return (
-    <article className={`character-card ${character.isGoldCharacter ? "gold" : ""}`}>
-      <div className="character-card-top">
+    <article className="character-card">
+      <div className="character-head">
         <div>
-          <div className="character-title-row">
+          <div className="character-title">
             <h3>{character.name}</h3>
-            {character.isGoldCharacter && <span className="badge gold">골드</span>}
+            {character.goldCharacter && <span className="badge gold">골드</span>}
           </div>
-          <p className="muted">
-            {character.job || "직업 미입력"}
-            {character.level ? ` · Lv.${character.level}` : ""}
-            {character.server ? ` · ${character.server}` : ""}
-          </p>
+          <p>{character.server || "서버 미지정"} · {character.job || "직업 미지정"} · {character.level || 0}</p>
         </div>
-
-        <div className="card-actions">
-          <button className="icon-button" onClick={() => onEdit(character)}>
-            <Pencil size={17} />
+        {!readOnly && (
+          <button className="icon-button danger" onClick={() => onDelete(character.id)} aria-label="삭제">
+            <Trash2 size={18} />
           </button>
-          <button className="icon-button danger" onClick={() => onDelete(character.id)}>
-            <Trash2 size={17} />
-          </button>
-        </div>
+        )}
       </div>
 
-      <div className="task-list compact">
-        {DAILY_TASKS.map((task) => (
-          <label key={task.key} className="task-check">
+      <ProgressBar value={progress} />
+      <div className="task-grid">
+        {ALL_TASKS.map((task) => (
+          <label key={task.key} className={character.tasks?.[task.key] ? "task done" : "task"}>
             <input
               type="checkbox"
-              checked={Boolean(character.dailyTodos?.[task.key])}
-              onChange={() => onToggleTodo(character.id, "daily", task.key)}
+              checked={Boolean(character.tasks?.[task.key])}
+              disabled={readOnly}
+              onChange={() => onToggle?.(character.id, task.key)}
             />
             <span>{task.label}</span>
           </label>
         ))}
       </div>
-
-      <div className="progress-row">
-        <span>{completed}/{DAILY_TASKS.length} 완료</span>
-        <strong>{progress}%</strong>
-      </div>
-      <ProgressBar value={progress} />
     </article>
   );
 }
