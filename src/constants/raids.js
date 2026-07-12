@@ -1,4 +1,4 @@
-export const RAID_DATA_UPDATED_AT = "2026-07-12";
+export const RAID_DATA_UPDATED_AT = "2026-07-12 (클리어 골드 교정)";
 
 // 레이드 데이터는 한 파일에서만 관리합니다.
 // 골드는 관문 합계 클리어 골드이며, 캐릭터 레벨 이상인 항목만 선택 목록에 표시됩니다.
@@ -11,13 +11,13 @@ export const RAID_CATALOG = [
 
   { id: "serka-nightmare", group: "그림자 레이드", name: "고통의 마녀, 세르카", shortName: "세르카", difficulty: "나이트메어", minLevel: 1740, gold: 54000 },
   { id: "serka-hard", group: "그림자 레이드", name: "고통의 마녀, 세르카", shortName: "세르카", difficulty: "하드", minLevel: 1730, gold: 44000 },
-  { id: "serka-normal", group: "그림자 레이드", name: "고통의 마녀, 세르카", shortName: "세르카", difficulty: "노말", minLevel: 1710, gold: 35000 },
+  { id: "serka-normal", group: "그림자 레이드", name: "고통의 마녀, 세르카", shortName: "세르카", difficulty: "노말", minLevel: 1710, gold: 32000 },
 
-  { id: "final-hard", group: "카제로스 레이드", name: "종막 : 최후의 날", shortName: "종막", difficulty: "하드", minLevel: 1730, gold: 52000 },
-  { id: "final-normal", group: "카제로스 레이드", name: "종막 : 최후의 날", shortName: "종막", difficulty: "노말", minLevel: 1710, gold: 40000 },
+  { id: "final-hard", group: "카제로스 레이드", name: "종막 : 최후의 날", shortName: "종막", difficulty: "하드", minLevel: 1730, gold: 48000 },
+  { id: "final-normal", group: "카제로스 레이드", name: "종막 : 최후의 날", shortName: "종막", difficulty: "노말", minLevel: 1710, gold: 32000 },
 
-  { id: "act4-hard", group: "카제로스 레이드", name: "4막 : 파멸의 성채", shortName: "4막", difficulty: "하드", minLevel: 1720, gold: 42000 },
-  { id: "act4-normal", group: "카제로스 레이드", name: "4막 : 파멸의 성채", shortName: "4막", difficulty: "노말", minLevel: 1700, gold: 33000 },
+  { id: "act4-hard", group: "카제로스 레이드", name: "4막 : 파멸의 성채", shortName: "4막", difficulty: "하드", minLevel: 1720, gold: 38000 },
+  { id: "act4-normal", group: "카제로스 레이드", name: "4막 : 파멸의 성채", shortName: "4막", difficulty: "노말", minLevel: 1700, gold: 27000 },
 
   { id: "act2-hard", group: "카제로스 레이드", name: "2막 : 부유하는 악몽의 진혼곡", shortName: "2막", difficulty: "하드", minLevel: 1690, gold: 23000 },
   { id: "act2-normal", group: "카제로스 레이드", name: "2막 : 부유하는 악몽의 진혼곡", shortName: "2막", difficulty: "노말", minLevel: 1670, gold: 16500 },
