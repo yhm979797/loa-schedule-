@@ -11,17 +11,12 @@ const config = {
   appId: import.meta.env.VITE_FIREBASE_APP_ID,
 };
 
-export const firebaseEnabled = Boolean(
-  config.apiKey && config.authDomain && config.projectId && config.appId
-);
-
+export const firebaseEnabled = Boolean(config.apiKey && config.authDomain && config.projectId && config.appId);
 let auth = null;
 let db = null;
-
 if (firebaseEnabled) {
   const app = getApps().length ? getApps()[0] : initializeApp(config);
   auth = getAuth(app);
   db = getFirestore(app);
 }
-
 export { auth, db };

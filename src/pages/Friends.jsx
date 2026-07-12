@@ -1,102 +1,15 @@
-import { useEffect, useState } from "react";
-import { collection, getDocs, query, where, doc, setDoc, deleteDoc } from "firebase/firestore";
-import { UserPlus, Trash2 } from "lucide-react";
-import { useAuth } from "../context/AuthContext";
+import { useState } from "react";
+import { Copy, ExternalLink, UploadCloud } from "lucide-react";
+import { doc, setDoc } from "firebase/firestore";
 import { db, firebaseEnabled } from "../lib/firebase";
-import CharacterCard from "../components/character/CharacterCard";
+import { useAuth } from "../context/AuthContext";
+import { useCharacters } from "../context/CharacterContext";
 
-export default function Friends() {
-  const { user, profile } = useAuth();
-  const [code, setCode] = useState("");
-  const [friends, setFriends] = useState([]);
-  const [selected, setSelected] = useState(null);
-  const [friendCharacters, setFriendCharacters] = useState([]);
-  const [message, setMessage] = useState("");
-
-  const loadFriends = async () => {
-    if (!firebaseEnabled || !user) return;
-    const snap = await getDocs(collection(db, "users", user.uid, "friends"));
-    setFriends(snap.docs.map((item) => item.data()));
-  };
-
-  useEffect(() => { loadFriends(); }, [user]);
-
-  const addFriend = async () => {
-    if (!user) return setMessage("Google 로그인이 필요합니다.");
-    const normalized = code.trim().toUpperCase();
-    if (!normalized) return;
-
-    const snap = await getDocs(query(collection(db, "users"), where("friendCode", "==", normalized)));
-    if (snap.empty) return setMessage("친구 코드를 찾지 못했습니다.");
-
-    const target = snap.docs[0].data();
-    if (target.uid === user.uid) return setMessage("자기 자신은 추가할 수 없습니다.");
-
-    await setDoc(doc(db, "users", user.uid, "friends", target.uid), {
-      uid: target.uid,
-      displayName: target.displayName,
-      email: target.email || "",
-      friendCode: target.friendCode,
-      addedAt: Date.now(),
-    });
-    setCode("");
-    setMessage("친구를 추가했습니다.");
-    loadFriends();
-  };
-
-  const viewSchedule = async (friend) => {
-    setSelected(friend);
-    const snap = await getDocs(collection(db, "users", friend.uid, "characters"));
-    setFriendCharacters(snap.docs.map((item) => item.data()).sort((a, b) => b.level - a.level));
-  };
-
-  const removeFriend = async (friend) => {
-    await deleteDoc(doc(db, "users", user.uid, "friends", friend.uid));
-    if (selected?.uid === friend.uid) {
-      setSelected(null);
-      setFriendCharacters([]);
-    }
-    loadFriends();
-  };
-
-  if (!firebaseEnabled) return <div className="empty">친구 기능은 Firebase 설정 후 사용할 수 있습니다.</div>;
-  if (!user) return <div className="empty">설정 화면에서 Google 로그인 후 친구를 추가해 주세요.</div>;
-
-  return (
-    <section>
-      <div className="section-title"><div><p className="eyebrow">FRIEND SCHEDULE</p><h2>친구</h2></div></div>
-      <div className="panel">
-        <p>내 친구 코드</p>
-        <div className="friend-code">{profile?.friendCode || "불러오는 중"}</div>
-        <div className="input-row">
-          <input value={code} onChange={(e) => setCode(e.target.value)} placeholder="친구 코드 입력" />
-          <button className="primary" onClick={addFriend}><UserPlus size={17} />추가</button>
-        </div>
-        {message && <p className="message">{message}</p>}
-      </div>
-
-      <div className="panel friend-list">
-        <h3>친구 목록</h3>
-        {friends.map((friend) => (
-          <div className="friend-row" key={friend.uid}>
-            <button className="friend-main" onClick={() => viewSchedule(friend)}>
-              <b>{friend.displayName}</b><small>{friend.friendCode}</small>
-            </button>
-            <button className="icon-button danger" onClick={() => removeFriend(friend)}><Trash2 size={17} /></button>
-          </div>
-        ))}
-        {!friends.length && <div className="empty small">추가된 친구가 없습니다.</div>}
-      </div>
-
-      {selected && (
-        <>
-          <div className="section-title"><h2>{selected.displayName}의 스케줄</h2></div>
-          <div className="card-list">
-            {friendCharacters.map((character) => <CharacterCard key={character.id} character={character} readOnly />)}
-            {!friendCharacters.length && <div className="empty">등록된 캐릭터가 없습니다.</div>}
-          </div>
-        </>
-      )}
-    </section>
-  );
+export default function Friends(){
+ const {user,error:authError}=useAuth(); const {characters,board,setBoard}=useCharacters(); const [message,setMessage]=useState("");
+ const ensureId=()=>board.id||crypto.randomUUID().replaceAll("-","").slice(0,12);
+ const publish=async()=>{ if(!firebaseEnabled)return setMessage("Firebase 설정이 필요합니다."); if(!user)return setMessage("익명 연결 중입니다. 잠시 후 다시 눌러 주세요."); const id=ensureId(); try{await setDoc(doc(db,"publicBoards",id),{ownerUid:user.uid,title:board.title||"레이드표",characters,updatedAt:Date.now()},{merge:true}); setBoard({...board,id}); setMessage("공유 레이드표를 게시했습니다.");}catch(e){setMessage(e.message);} };
+ const url=board.id?`${location.origin}/share/${board.id}`:"";
+ const copy=async()=>{await navigator.clipboard.writeText(url);setMessage("공유 주소를 복사했습니다.");};
+ return <section><div className="section-title"><div><p className="eyebrow">PUBLIC SHARE</p><h2>친구에게 레이드표 공유</h2></div></div><div className="panel"><label className="field-label">레이드표 제목</label><input value={board.title} onChange={e=>setBoard({...board,title:e.target.value})} placeholder="예: 현민 레이드표"/><p className="help">게시 버튼을 누르면 현재 체크 상태가 공용 링크에 올라갑니다. 이후 변경할 때마다 다시 게시하면 갱신됩니다.</p><button className="primary full" onClick={publish}><UploadCloud size={18}/>현재 레이드표 게시/갱신</button>{url&&<div className="share-link"><input readOnly value={url}/><button className="secondary" onClick={copy}><Copy size={17}/>복사</button><a className="secondary button-link" href={url} target="_blank" rel="noreferrer"><ExternalLink size={17}/>열기</a></div>}</div>{(message||authError)&&<div className="notice">{message||authError}</div>}<div className="panel info-list"><div><span>Google 로그인</span><b>사용 안 함</b></div><div><span>친구 권한</span><b>보기 전용</b></div><div><span>수정 권한</span><b>이 브라우저만</b></div></div></section>;
 }

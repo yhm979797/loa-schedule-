@@ -1,89 +1,19 @@
 import { useState } from "react";
-import { Search, Plus, Download } from "lucide-react";
+import { Download, Search } from "lucide-react";
 import { searchRoster } from "../api/lostark";
 import { useCharacters } from "../context/CharacterContext";
 import CharacterCard from "../components/character/CharacterCard";
 
 export default function Characters() {
-  const { characters, saveCharacter, addMany, removeCharacter, toggleTask, syncing } = useCharacters();
-  const [name, setName] = useState("");
-  const [manual, setManual] = useState({ name: "", server: "", job: "", level: "" });
-  const [results, setResults] = useState([]);
-  const [selected, setSelected] = useState({});
-  const [message, setMessage] = useState("");
-  const [searching, setSearching] = useState(false);
-
-  const runSearch = async () => {
-    if (!name.trim()) return;
-    setSearching(true);
-    setMessage("");
-    try {
-      const data = await searchRoster(name.trim());
-      setResults(data.characters);
-      setSelected(Object.fromEntries(data.characters.map((item) => [item.id, true])));
-    } catch (error) {
-      setMessage(error.message);
-    } finally {
-      setSearching(false);
-    }
-  };
-
-  const importSelected = async () => {
-    const chosen = results.filter((item) => selected[item.id]);
-    await addMany(chosen);
-    setMessage(`${chosen.length}개 캐릭터를 등록했습니다.`);
-    setResults([]);
-  };
-
-  const addManual = async (event) => {
-    event.preventDefault();
-    if (!manual.name.trim()) return;
-    await saveCharacter(manual);
-    setManual({ name: "", server: "", job: "", level: "" });
-  };
-
-  return (
-    <section>
-      <div className="section-title"><div><p className="eyebrow">AUTO SYNC</p><h2>캐릭터</h2></div></div>
-
-      <div className="panel">
-        <h3>닉네임으로 원정대 불러오기</h3>
-        <div className="input-row">
-          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="대표 캐릭터 닉네임" onKeyDown={(e) => e.key === "Enter" && runSearch()} />
-          <button className="primary" onClick={runSearch} disabled={searching}><Search size={17} />{searching ? "조회 중" : "조회"}</button>
-        </div>
-        {message && <p className="message">{message}</p>}
-
-        {results.length > 0 && (
-          <div className="search-results">
-            {results.map((item) => (
-              <label key={item.id}>
-                <input type="checkbox" checked={Boolean(selected[item.id])} onChange={() => setSelected((prev) => ({ ...prev, [item.id]: !prev[item.id] }))} />
-                <span><b>{item.name}</b><small>{item.server} · {item.job} · {item.level}</small></span>
-              </label>
-            ))}
-            <button className="primary full" onClick={importSelected} disabled={syncing}><Download size={17} />선택 캐릭터 등록</button>
-          </div>
-        )}
-      </div>
-
-      <form className="panel" onSubmit={addManual}>
-        <h3>직접 추가</h3>
-        <div className="form-grid">
-          <input required value={manual.name} onChange={(e) => setManual({ ...manual, name: e.target.value })} placeholder="캐릭터명" />
-          <input value={manual.server} onChange={(e) => setManual({ ...manual, server: e.target.value })} placeholder="서버" />
-          <input value={manual.job} onChange={(e) => setManual({ ...manual, job: e.target.value })} placeholder="직업" />
-          <input type="number" value={manual.level} onChange={(e) => setManual({ ...manual, level: e.target.value })} placeholder="아이템 레벨" />
-        </div>
-        <button className="secondary" type="submit"><Plus size={17} />직접 추가</button>
-      </form>
-
-      <div className="card-list">
-        {characters.map((character) => (
-          <CharacterCard key={character.id} character={character} onToggle={toggleTask} onDelete={removeCharacter} />
-        ))}
-        {!characters.length && <div className="empty">등록된 캐릭터가 없습니다.</div>}
-      </div>
-    </section>
-  );
+  const { characters, addMany, removeCharacter, updateRaid } = useCharacters();
+  const [name,setName]=useState(""); const [results,setResults]=useState([]); const [selected,setSelected]=useState(new Set()); const [message,setMessage]=useState(""); const [loading,setLoading]=useState(false);
+  const search = async (e) => { e.preventDefault(); setLoading(true); setMessage(""); try { const data=await searchRoster(name); setResults(data.characters||[]); setSelected(new Set((data.characters||[]).slice(0,6).map(c=>c.id))); } catch(err){setMessage(err.message);} finally{setLoading(false);} };
+  const register = () => { addMany(results.filter(c=>selected.has(c.id))); setMessage("선택한 캐릭터를 등록했습니다."); };
+  return <section>
+    <div className="section-title"><div><p className="eyebrow">CHARACTERS</p><h2>캐릭터 등록</h2></div></div>
+    <form className="panel search-box" onSubmit={search}><input value={name} onChange={e=>setName(e.target.value)} placeholder="대표 캐릭터명" required/><button className="primary" disabled={loading}><Search size={17}/>{loading?"조회 중":"원정대 조회"}</button></form>
+    {message && <div className="notice">{message}</div>}
+    {!!results.length && <div className="panel"><h3>등록할 캐릭터 선택</h3><div className="result-list">{results.map(c=><label key={c.id}><input type="checkbox" checked={selected.has(c.id)} onChange={()=>setSelected(prev=>{const n=new Set(prev); n.has(c.id)?n.delete(c.id):n.add(c.id); return n;})}/><span><b>{c.name}</b><small>{c.server} · {c.job} · {c.level}</small></span></label>)}</div><button className="secondary full" onClick={register}><Download size={17}/>선택 캐릭터 등록</button></div>}
+    <div className="card-list">{characters.map(c=><CharacterCard key={c.id} character={c} onDelete={removeCharacter} onRaidChange={updateRaid}/>)}{!characters.length&&<div className="empty">캐릭터를 등록해 주세요.</div>}</div>
+  </section>;
 }
