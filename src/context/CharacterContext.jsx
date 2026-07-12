@@ -49,8 +49,9 @@ export function CharacterProvider({ children }) {
     const raids = characters.flatMap((c) => (c.raids || []).filter((r) => r.id));
     return raids.length ? Math.round(raids.filter((r) => r.done).length / raids.length * 100) : 0;
   }, [characters]);
-  const totalGold = useMemo(() => characters.flatMap((c) => c.raids || []).filter((r) => r.done).reduce((sum, r) => sum + (Number(r.gold) || 0), 0), [characters]);
+  const totalGold = useMemo(() => characters.flatMap((c) => c.raids || []).filter((r) => r.id).reduce((sum, r) => sum + (Number(r.gold) || 0), 0), [characters]);
+  const completedGold = useMemo(() => characters.flatMap((c) => c.raids || []).filter((r) => r.id && r.done).reduce((sum, r) => sum + (Number(r.gold) || 0), 0), [characters]);
 
-  return <CharacterContext.Provider value={{characters, board, setBoard, addMany, removeCharacter, updateRaid, selectRaid, resetAll, progress, totalGold}}>{children}</CharacterContext.Provider>;
+  return <CharacterContext.Provider value={{characters, board, setBoard, addMany, removeCharacter, updateRaid, selectRaid, resetAll, progress, totalGold, completedGold}}>{children}</CharacterContext.Provider>;
 }
 export const useCharacters = () => useContext(CharacterContext);
